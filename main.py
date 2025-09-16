@@ -8,7 +8,11 @@
 # ╚═╝      ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝╚══════╝╚═╝   ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝
 # >>> MUTANOX SPAM ENGINE v2.0 <<< — By MutanoX
 
-import os, json, smtplib, time, datetime
+import os
+import json
+import smtplib
+import time
+import datetime
 from email.mime.text import MIMEText
 from pathlib import Path
 
@@ -16,10 +20,11 @@ from pathlib import Path
 # █▄▄ █▄█ █░▀░█ ██▄ █░▀█ ░█░ █▀▄ █▄█
 
 def clear_screen():
+    """Limpa a tela do console."""
     os.system("cls" if os.name == "nt" else "clear")
 
 def print_banner():
-    # A função do banner permanece a mesma, apenas omitida aqui para economizar espaço.
+    """Imprime o banner principal do programa."""
     clear_screen()
     print("\033[1;92m")
     print(r"  ███▄ ▄███▓ ▄▄▄       ██▓     ██▓    ▓█████▄  ██▓ ▄▄▄       ███▄ ▄███▓")
@@ -37,6 +42,7 @@ def print_banner():
     time.sleep(1)
 
 def print_menu():
+    """Imprime o menu de opções."""
     clear_screen()
     print_banner()
     print("\033[1;93m" + "═"*60 + "\033[0m")
@@ -47,6 +53,7 @@ def print_menu():
     print("\033[1;93m" + "═"*60 + "\033[0m")
 
 def load_config():
+    """Carrega as configurações do 'database.json' ou cria um arquivo base."""
     if not Path("database.json").exists():
         print("\033[1;31m [!] database.json não encontrado. Criando arquivo base...\033[0m")
         base_config = {
@@ -63,6 +70,7 @@ def load_config():
         return json.load(f)
 
 def ensure_victim_file(victim_email):
+    """Garante que o arquivo de log para uma vítima exista."""
     filename = f"victims/{victim_email.replace('@', '_at_').replace('.', '_dot_')}.json"
     Path("victims").mkdir(exist_ok=True)
     if not Path(filename).exists():
@@ -77,6 +85,7 @@ def ensure_victim_file(victim_email):
     return filename
 
 def update_victim_log(victim_email, count, interval_sec):
+    """Atualiza o arquivo de log da vítima com os dados do novo ataque."""
     filename = ensure_victim_file(victim_email)
     with open(filename, "r+", encoding="utf-8") as f:
         data = json.load(f)
@@ -93,6 +102,7 @@ def update_victim_log(victim_email, count, interval_sec):
     print(f"\033[1;32m [✓] Log atualizado para {victim_email}\033[0m")
 
 def list_victims():
+    """Lista todas as vítimas e suas estatísticas."""
     clear_screen()
     print_banner()
     print("\033[1;96m> > > LISTAGEM DE VÍTIMAS\033[0m\n")
@@ -109,13 +119,13 @@ def list_victims():
             print("\033[1;93m" + "─"*50 + "\033[0m")
             print(f" \033[1;97m📧 EMAIL: \033[1;92m{data.get('email', 'N/A')}")
             print(f" \033[1;97m💣 TOTAL SPAM ENVIADO: \033[1;91m{data.get('total_spam_sent', 0)}")
-            # CORREÇÃO: Verifica se 'attack_log' existe e não está vazio antes de acessar o último item.
             last_attack = data.get('attack_log', [])[-1]['timestamp'] if data.get('attack_log') else 'Nunca'
             print(f" \033[1;97m📅 ÚLTIMO ATAQUE: \033[1;93m{last_attack}")
     print("\033[1;93m" + "─"*50 + "\033[0m")
     input("\n\033[1;37m Pressione Enter para voltar...\033[0m")
 
 def clear_logs():
+    """Apaga todos os arquivos de log de vítimas."""
     clear_screen()
     print_banner()
     print("\033[1;96m> > > LIMPANDO LOGS DE VÍTIMAS\033[0m\n")
@@ -137,12 +147,14 @@ def clear_logs():
 # █▀▄ █▀█ █▄▀ █▄█ ▄█ ██▄ █░▀█ ▄█
 
 class SMTPSpammer:
+    """Classe que gerencia a conexão SMTP e o envio de e-mails."""
     def __init__(self, email, password):
         self.email = email
         self.password = password
         self.server = None
 
     def connect(self):
+        """Conecta-se ao servidor SMTP do Gmail."""
         try:
             self.server = smtplib.SMTP("smtp.gmail.com", 587)
             self.server.ehlo()
@@ -151,7 +163,6 @@ class SMTPSpammer:
             print("\033[1;32m [✓] Conexão SMTP estabelecida com sucesso.\033[0m")
             return True
         except smtplib.SMTPAuthenticationError:
-            # CORREÇÃO: Mensagem de erro mais clara sobre a senha de aplicativo.
             print("\033[1;31m\n [!] Autenticação falhou. Verifique seu e-mail e senha.\033[0m")
             print("\033[1;33m [i] Para Gmail, é necessário usar uma 'Senha de App', não a sua senha normal.\033[0m")
             print("\033[1;33m [i] Gere uma em: https://myaccount.google.com/apppasswords\033[0m")
@@ -161,17 +172,18 @@ class SMTPSpammer:
             return False
 
     def disconnect(self):
+        """Encerra a conexão SMTP."""
         if self.server:
             self.server.quit()
             print("\033[1;32m [✓] Conexão SMTP encerrada.\033[0m")
 
     def send_single_email(self, victim, message_body, subject):
+        """Envia um único e-mail."""
         try:
             msg = MIMEText(message_body, 'plain', 'utf-8')
             msg['Subject'] = subject
             msg['From'] = self.email
             msg['To'] = victim
-
             self.server.sendmail(self.email, victim, msg.as_string())
             return True
         except Exception as e:
@@ -179,6 +191,7 @@ class SMTPSpammer:
             return False
 
     def spam_attack(self, victim, message, total_count, interval_sec):
+        """Executa o loop de ataque de spam."""
         clear_screen()
         print_banner()
         print(f"\033[1;91m> > > INICIANDO ATAQUE SPAM CONTRA: {victim}\033[0m")
@@ -188,7 +201,6 @@ class SMTPSpammer:
             input("\n\033[1;37m Pressione Enter para voltar...\033[0m")
             return
 
-        # Extrai o assunto da primeira linha da mensagem, se houver
         message_lines = message.split('\n')
         subject = message_lines[0] if message_lines else "Sem Assunto"
         message_body = '\n'.join(message_lines)
@@ -200,7 +212,7 @@ class SMTPSpammer:
                 print(f"\033[1;32m [>] PACOTE {i}/{total_count} ENVIADO PARA {victim}\033[0m")
             else:
                 print(f"\033[1;31m [!] PACOTE {i} FALHOU — TENTANDO RECONEXÃO...\033[0m")
-                time.sleep(5) # Espera um pouco antes de reconectar
+                time.sleep(5)
                 if not self.connect():
                     print("\033[1;31m [!] FALHA CRÍTICA NA RECONEXÃO — ATAQUE INTERROMPIDO.\033[0m")
                     break
@@ -218,6 +230,7 @@ class SMTPSpammer:
 # █▀█ █▀▀ █▀▄ █▄█ ██▄ █▀▄
 
 def start_spam_attack(config):
+    """Coleta os dados do usuário e inicia o ataque."""
     clear_screen()
     print_banner()
     print("\033[1;96m> > > CONFIGURAÇÃO DE ATAQUE\033[0m\n")
@@ -228,18 +241,24 @@ def start_spam_attack(config):
         input("\n\033[1;37m Pressione Enter para voltar...\033[0m")
         return
 
-    # CORREÇÃO: Lógica de leitura da mensagem corrigida e simplificada.
     message_lines = []
     print("\033[1;97m [?] Digite a mensagem (primeira linha será o assunto). Digite 'FIM' para finalizar:\033[0m")
     while True:
         line = input("\033[1;90m   > \033[0m")
-        if line.strip().upper() == "FIM":
+        line_stripped = line.strip()
+        line_upper = line_stripped.upper()
+
+        if line_upper.endswith("FIM"):
+            part_before_fim = line_stripped[:-3].strip()
+            if part_before_fim:
+                message_lines.append(part_before_fim)
             break
-        # Permite finalizar digitando uma linha vazia após já ter escrito algo.
-        if not line.strip() and message_lines:
+        
+        if not line_stripped and message_lines:
             break
+            
         message_lines.append(line)
-    
+
     if not message_lines:
         print("\033[1;31m [!] A mensagem não pode estar vazia.\033[0m")
         input("\n\033[1;37m Pressione Enter para voltar...\033[0m")
@@ -263,7 +282,6 @@ def start_spam_attack(config):
         input("\n\033[1;37m Pressione Enter para voltar...\033[0m")
         return
 
-    # CORREÇÃO: Código duplicado removido. Apenas uma chamada ao ataque.
     spammer = SMTPSpammer(config["email"], config["password"])
     spammer.spam_attack(victim, message, total_count, interval_sec)
 
@@ -271,6 +289,7 @@ def start_spam_attack(config):
 # █▄▀ ██▄ █▀█ █▀▄ ██▄ █▄▄ █▀█ █░▀█ █▄▀
 
 def main():
+    """Função principal que executa o loop do menu."""
     try:
         config = load_config()
         while True:
